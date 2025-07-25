@@ -1,0 +1,46 @@
+name: Gradle Build and Push Jar
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Grant execute permission to Gradle wrapper
+        run: chmod +x ./gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build --info -x test
+
+      - name: Find built jar
+        id: findjar
+        run: |
+          JAR_PATH=$(find build/libs -name "*.jar" | head -n 1)
+          echo "jar_path=$JAR_PATH" >> $GITHUB_OUTPUT
+
+      - name: Upload jar to GitHub repo (as commit to artifacts branch)
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          
+          git clone --depth 1 --branch artifacts https://github.com/${{ github.repository }} artifact-repo
+          cp ${{ steps.findjar.outputs.jar_path }} artifact-repo/
+          cd artifact-repo
+          git add .
+          git commit -m "Add jar built on $(date)"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
